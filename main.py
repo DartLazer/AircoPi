@@ -2,15 +2,18 @@ import subprocess
 import time
 import os
 from signal import pause
+import datetime
 
-from gpiozero import Button, LED
+from gpiozero import Button, LED, MotionSensor
 
-scan_button = Button(17)
-send_button = Button(27)
+scan_button = Button(17)  # button used to scan the IR signal to be sent to the AC unit
+send_button = Button(27)  # button used to send the IR signal (for testing only)
 led = LED(16)
+vibration_sensor = MotionSensor(23)
+motion_sensor = MotionSensor(21)
 
 
-def blink_10(led_light):
+def blink_10(led_light):  # simple function to fast blink the LEDs
     count = 0
     while count < 11:
         led_light.on()
@@ -20,9 +23,9 @@ def blink_10(led_light):
         count += 1
 
 
-def send_code():
+def send_code():  # function that sends the IR code (testing only?)
     try:
-        if os.stat('captured_key.txt').st_size == 0:
+        if os.stat('captured_key.txt').st_size == 0:  # checks if code has been scanned. if not raises an error.
             raise OSError
         print('Sending code...')
         os.system('ir-ctl -d /dev/lirc0 --send=captured_key.txt')
@@ -30,7 +33,7 @@ def send_code():
         print('No code found. Please scan first')
 
 
-def scan_code():
+def scan_code():  # activates the scanner for 5 seconds. Press remote button once to scan and save it.
     try:
         print('Deleting old remote configuration..')
         os.remove('captured_key.txt')
@@ -52,7 +55,22 @@ def scan_code():
         print('Scan failed')
 
 
-scan_button.when_pressed = scan_code
-send_button.when_pressed = send_code
+def airco_running():
+    now = datetime.datetime.now().time()
+    start = datetime.time(8)
+    end = datetime.time(22)
+    if now < start or now > end:  # Airco can be on without limitations
+        return None  # skip function
+        # wait for x minutes no motion scan then shutoff airco
 
-pause()
+
+def main():
+    scan_button.when_pressed = scan_code
+    send_button.when_pressed = send_code
+    timestamp = datetime.time(23, 3, 00)
+    vibration_sensor._when_activated = airco_running
+    pause()
+
+
+if __name__ == "__main__":
+    main()
