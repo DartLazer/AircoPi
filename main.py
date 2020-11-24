@@ -7,19 +7,26 @@ from gpiozero import Button, LED, MotionSensor
 
 scan_button = Button(17)  # button used to scan the IR signal to be sent to the AC unit
 test_button = Button(27)  # button used to send the IR signal (for testing only)
-led = LED(16)
+red_led = LED(16)
+blue_led = LED(12)
 vibration_sensor = MotionSensor(25)
 motion_sensor = MotionSensor(26)
 
 
-def blink_10(led_light):  # simple function to fast blink the LEDs
-    count = 0
-    while count < 11:
+def blink_10_fast(led_light):  # simple function to fast blink the LEDs
+    for x in range(0, 10):
         led_light.on()
-        sleep(0.1)
+        sleep(0.05)
         led_light.off()
-        sleep(0.1)
-        count += 1
+        sleep(0.05)
+
+
+def blink_2_slow(led_light):
+    for x in range(0, 2):
+        led_light.on()
+        sleep(0.4)
+        led_light.off()
+        sleep(0.4)
 
 
 def shutdown_ac():  # function that sends the IR code (testing only?)
@@ -51,7 +58,7 @@ def check_airco_off():  # function that checks if the airco is shutdown correctl
                 sleep(15)
                 continue
         if x == 5:
-            print('Airco shutdown failed 5 times. Restarting raspberry pi.')
+            print('Airco shutdown faired_led 5 times. Restarting raspberry pi.')
             os.system("sudo reboot now")
         i += 1
 
@@ -62,16 +69,16 @@ def scan_code():  # activates the scanner for 5 seconds. Press remote button onc
         os.remove('captured_key.txt')
 
     print('Scanner activated.\n')
-    led.on()
+    red_led.on()
     cmd = subprocess.Popen("ir-ctl " + '--mode2 -d /dev/lirc1 -r > captured_key.txt', stdout=subprocess.PIPE, shell=True)
     sleep(5)
     subprocess.Popen.kill(cmd)
-    led.off()
+    red_led.off()
     if os.stat('captured_key.txt').st_size > 10:
         print('Scan successful! Remote captured')
-        blink_10(led)
+        blink_10_fast(red_led)
     else:
-        print('Scan failed')
+        print('Scan faired_led')
 
 
 def set_time_limit(time_object, time_type, time_to_add):  # ads a certain time to an input datetime object (shifts the time by x minutes/seconds).
@@ -83,10 +90,13 @@ def set_time_limit(time_object, time_type, time_to_add):  # ads a certain time t
 
 def airco_running():  # Vibration has been detected. It has been determined the airco is running. This function checks if the airco can be on with or without limitations. If so it will enforce said limitations
     now = datetime.datetime.now().time()
-    start = datetime.time(8)  # beginning of the time period where the airco can NOT be on unrestricted. (Format (hours, minutes) i.e.: datetime.time(8, 30) is 08:30 AM.)
-    end = datetime.time(22)  # ending of the time period where the airco can NOT be on unrestricted.     (Format (hours, minutes) i.e.: datetime.time(22, 15) is 10:15 PM.)
+    start = datetime.time(
+        8)  # beginning of the time period where the airco can NOT be on unrestricted. (Format (hours, minutes) i.e.: datetime.time(8, 30) is 08:30 AM.)
+    end = datetime.time(
+        22)  # ending of the time period where the airco can NOT be on unrestricted.     (Format (hours, minutes) i.e.: datetime.time(22, 15) is 10:15 PM.)
 
     if now < start or now > end:  # Checks if the airco is in the "unrestricted time period". If so, we will not continue further.
+        blink_10_fast(blue_led)
         return None  # skip function
 
     last_motion = datetime.datetime.now()  # The last motion variable is a date-time (time) variable which contains the last point in time MOTION has been detected. It is set to the current time now for initialisation.
@@ -96,19 +106,22 @@ def airco_running():  # Vibration has been detected. It has been determined the 
     vibration_limit = 10  # amount of seconds vibrations is allowed to be not registered to allow to send A/C off signal. This is to prevent actually starting the A/C if it has already been switched on, and in the meantime allowing for vibration
     # sensor inaccuracies where it might or might not registered vibration continuously.
 
-    vibration_time_limit = set_time_limit(last_vibration, 'seconds', vibration_limit)  # latest moment the shut-off signal can be sent if vibration has not been detected meanwhile to prevent accidentally starting the AC.
+    vibration_time_limit = set_time_limit(last_vibration, 'seconds',
+                                          vibration_limit)  # latest moment the shut-off signal can be sent if vibration has not been detected meanwhile to prevent accidentally starting the AC.
     time_limit = set_time_limit(last_motion, 'minutes', airco_run_limit)  # latest date-time moment the airco is allowed to be on
 
     print('In restricted time. Starting airco control script: ')  # for debugging only
     while True:
+        blue_led.on()
         if now < start or now > end:  # This once again checks if since the time the airco started, we have now entered the "unrestricted" time span. In this case the script is no longer needed.
+            blink_10_fast(blue_led)
             break
 
         if motion_sensor.is_active:  # Motion is detected. time_limit variable will be set to current time + 'airco_run_limit' variable. This will be the new time where the AC will be shutoff if no motion detected.
             print('Motion detected')  # for debugging only
-            led.on()  # for debugging only
+            red_led.on()  # for debugging only
             sleep(1)  # for debugging only
-            led.off()  # for debugging only
+            red_led.off()  # for debugging only
             last_motion = datetime.datetime.now()
             time_limit = set_time_limit(last_motion, 'minutes', airco_run_limit)
             print(f'Time limit reset to {time_limit}')  # debugging only
@@ -127,12 +140,14 @@ def airco_running():  # Vibration has been detected. It has been determined the 
                 sleep(10)
                 check_airco_off()  # check if airco shut down. If not, this function will restart.
                 print('Airco is off')  # for debugging only
-            print('Airco is already off.')
+            else:
+                print('Airco is already off.')
+                blink_2_slow(blue_led)
+            blue_led.off()
             break
 
         sleep(0.5)
 
-    print('leaving loop')  # for debugging only
 
 
 def main():
