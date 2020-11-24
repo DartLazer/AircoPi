@@ -33,6 +33,29 @@ def shutdown_ac():  # function that sends the IR code (testing only?)
         print('No code found. Please scan first')
 
 
+def check_airco_off():  # function that checks if the airco is shutdown correctly. If not, it will attempt to shutdown the airco again.
+    vibration_time_limit = datetime.datetime.now().time()
+    i = 0
+    x = 0
+    while i < 20:
+        sleep(1)
+        now = datetime.datetime.now()
+        if vibration_sensor.is_active:
+            vibration_time_limit = set_time_limit(now, 'seconds', 10)
+        if i == 19:
+            if now.time() < vibration_time_limit:
+                print('Airco still on. reattempting shutdown')
+                shutdown_ac()
+                i = 0
+                x += 1
+                sleep(15)
+                continue
+        if x == 5:
+            print('Airco shutdown failed 5 times. Restarting raspberry pi.')
+            os.system("sudo reboot now")
+        i += 1
+
+
 def scan_code():  # activates the scanner for 5 seconds. Press remote button once to scan and save it.
     if os.path.exists('captured_key.txt'):
         print('Replacing old remote configuration..')
@@ -67,7 +90,7 @@ def airco_running():  # Vibration has been detected. It has been determined the 
         return None  # skip function
 
     last_motion = datetime.datetime.now()  # The last motion variable is a date-time (time) variable which contains the last point in time MOTION has been detected. It is set to the current time now for initialisation.
-    airco_run_limit = 3  # time in minutes the airco is allowed to run without detecting motion
+    airco_run_limit = 1  # time in minutes the airco is allowed to run without detecting motion
 
     last_vibration = datetime.datetime.now()  # The last vibration variable is a date-time (time) variable which contains the last point in time VIBRATION (airco status) has been detected. It is set to the current time now for initialisation.
     vibration_limit = 10  # amount of seconds vibrations is allowed to be not registered to allow to send A/C off signal. This is to prevent actually starting the A/C if it has already been switched on, and in the meantime allowing for vibration
@@ -76,18 +99,15 @@ def airco_running():  # Vibration has been detected. It has been determined the 
     vibration_time_limit = set_time_limit(last_vibration, 'seconds', vibration_limit)  # latest moment the shut-off signal can be sent if vibration has not been detected meanwhile to prevent accidentally starting the AC.
     time_limit = set_time_limit(last_motion, 'minutes', airco_run_limit)  # latest date-time moment the airco is allowed to be on
 
-    print('Entering loop')  # for debugging only
+    print('In restricted time. Starting airco control script: ')  # for debugging only
     while True:
         if now < start or now > end:  # This once again checks if since the time the airco started, we have now entered the "unrestricted" time span. In this case the script is no longer needed.
             break
 
         if motion_sensor.is_active:  # Motion is detected. time_limit variable will be set to current time + 'airco_run_limit' variable. This will be the new time where the AC will be shutoff if no motion detected.
             print('Motion detected')  # for debugging only
-            # print('led on')
             led.on()  # for debugging only
-            # print('sleep 1s')
             sleep(1)  # for debugging only
-            # print('led off')
             led.off()  # for debugging only
             last_motion = datetime.datetime.now()
             time_limit = set_time_limit(last_motion, 'minutes', airco_run_limit)
@@ -96,17 +116,21 @@ def airco_running():  # Vibration has been detected. It has been determined the 
 
         if vibration_sensor.is_active:
             vibration_time_limit = set_time_limit(datetime.datetime.now(), 'seconds', vibration_limit)
-            print('Vibration detected')  # debugging only
+            #  print('Vibration detected')  # debugging only
 
         now = datetime.datetime.now().time()
         if now > time_limit:  # Airco has been on without detected movement for longer than the allowed limit.
-            if datetime.datetime.now().time() < vibration_time_limit:  # If the airco has been registered on the last 10 seconds. We will not shutdown the AC (to prevent accidentally starting the AC instead of stopping it)
+            print(f'No motion for the last {airco_run_limit} minutes.')
+            if now < vibration_time_limit:  # If the airco has been registered on the last 10 seconds. We will not shutdown the AC (to prevent accidentally starting the AC instead of stopping it)
+                print('Attempting to shut down the AC')
                 shutdown_ac()  # send A/C off signal.
-                print('Legit shutdown')  # for debugging only
-            print('Airco off!')  # for debugging only
+                sleep(10)
+                check_airco_off()  # check if airco shut down. If not, this function will restart.
+                print('Airco is off')  # for debugging only
+            print('Airco is already off.')
             break
 
-        sleep(0.1)
+        sleep(0.5)
 
     print('leaving loop')  # for debugging only
 
@@ -116,10 +140,11 @@ def main():
         if scan_button.is_pressed:
             scan_code()
         if vibration_sensor.is_active:
+            print('Airco vibration detected. Starting airco logic')
             airco_running()
         if test_button.is_pressed:
             shutdown_ac()
-        sleep(0.1)
+        sleep(0.5)
 
 
 if __name__ == "__main__":
