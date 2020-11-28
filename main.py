@@ -29,15 +29,28 @@ def blink_2_slow(led_light):
         sleep(0.4)
 
 
+def dual_blink_2_slow(led_light1, led_light2):
+    for x in range(0, 2):
+        led_light1.on()
+        led_light2.on()
+        sleep(0.4)
+        led_light1.off()
+        led_light2.off()
+        sleep(0.4)
+
+
 def shutdown_ac():  # function that sends the IR code (testing only?)
     try:
         if os.stat('captured_key.txt').st_size < 10:  # checks if code has been scanned. if not raises an error.
             raise OSError
         print('Sending code...')
-        os.system('ir-ctl -d /dev/lirc0 --send=captured_key.txt > /dev/null 2>&1 &')
-        print('Code sent.')
+        command = ['ir-ctl', '-d', '/dev/lirc0', '--send=captured_key.txt']
+        result = str(subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr).casefold()
+        if 'failed' in result:
+            print('Failed')
     except OSError:
         print('No code found. Please scan first')
+        dual_blink_2_slow(red_led, blue_led)
 
 
 def check_airco_off():  # function that checks if the airco is shutdown correctly. If not, it will attempt to shutdown the airco again.
@@ -58,7 +71,7 @@ def check_airco_off():  # function that checks if the airco is shutdown correctl
                 sleep(15)
                 continue
         if x == 5:
-            print('Airco shutdown faired_led 5 times. Restarting raspberry pi.')
+            print('Airco shutdown failed 5 times. Restarting raspberry pi.')
             os.system("sudo reboot now")
         i += 1
 
@@ -78,7 +91,7 @@ def scan_code():  # activates the scanner for 5 seconds. Press remote button onc
         print('Scan successful! Remote captured')
         blink_10_fast(red_led)
     else:
-        print('Scan faired_led')
+        print('Scan failed')
 
 
 def set_time_limit(time_object, time_type, time_to_add):  # ads a certain time to an input datetime object (shifts the time by x minutes/seconds).
