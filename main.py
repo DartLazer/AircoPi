@@ -12,6 +12,8 @@ blue_led = LED(12)
 vibration_sensor = MotionSensor(25)
 motion_sensor = MotionSensor(26)
 
+captured_key_file_location = '/home/pi/captured_key.txt'
+
 
 def blink_10_fast(led_light):  # simple function to fast blink the LEDs
     for x in range(0, 10):
@@ -41,10 +43,10 @@ def dual_blink_2_slow(led_light1, led_light2):
 
 def shutdown_ac():  # function that sends the IR code (testing only?)
     try:
-        if os.stat('captured_key.txt').st_size < 10:  # checks if code has been scanned. if not raises an error.
+        if os.stat(captured_key_file_location).st_size < 10:  # checks if code has been scanned. if not raises an error.
             raise OSError
         print('Sending code...')
-        command = ['ir-ctl', '-d', '/dev/lirc0', '--send=captured_key.txt']
+        command = ['ir-ctl', '-d', '/dev/lirc0', '--send=' + captured_key_file_location]
         result = str(subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr).casefold()
         if 'failed' in result:
             print('Failed')
@@ -77,17 +79,17 @@ def check_airco_off():  # function that checks if the airco is shutdown correctl
 
 
 def scan_code():  # activates the scanner for 5 seconds. Press remote button once to scan and save it.
-    if os.path.exists('captured_key.txt'):
+    if os.path.exists(captured_key_file_location):
         print('Replacing old remote configuration..')
-        os.remove('captured_key.txt')
+        os.remove(captured_key_file_location)
 
     print('Scanner activated.\n')
     red_led.on()
-    cmd = subprocess.Popen("ir-ctl " + '--mode2 -d /dev/lirc1 -r > captured_key.txt', stdout=subprocess.PIPE, shell=True)
+    cmd = subprocess.Popen("ir-ctl " + '--mode2 -d /dev/lirc1 -r > ' + captured_key_file_location, stdout=subprocess.PIPE, shell=True)
     sleep(5)
     subprocess.Popen.kill(cmd)
     red_led.off()
-    if os.stat('captured_key.txt').st_size > 10:
+    if os.stat(captured_key_file_location).st_size > 10:
         print('Scan successful! Remote captured')
         blink_10_fast(red_led)
     else:
@@ -160,7 +162,6 @@ def airco_running():  # Vibration has been detected. It has been determined the 
             break
 
         sleep(0.5)
-
 
 
 def main():
