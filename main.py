@@ -1,6 +1,7 @@
 import subprocess
 from time import sleep
 import os
+import pathlib
 import datetime
 
 from gpiozero import Button, LED, MotionSensor
@@ -12,7 +13,9 @@ blue_led = LED(12)
 vibration_sensor = MotionSensor(25)
 motion_sensor = MotionSensor(26)
 
-captured_key_file_location = '/home/pi/captured_key.txt'
+
+pwd = pathlib.Path(__file__).parent.absolute()
+captured_key_file_location = pwd + '/captured_key.txt'
 
 
 def blink_10_fast(led_light):  # simple function to fast blink the LEDs
@@ -165,6 +168,7 @@ def airco_running():  # Vibration has been detected. It has been determined the 
 
 
 def main():
+    print(captured_key_file_location)
     while True:
         if scan_button.is_pressed:
             scan_code()
