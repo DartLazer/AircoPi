@@ -107,13 +107,10 @@ def scan_code():  # activates the scanner for 5 seconds. Press remote button onc
     else:
         print('Scan failed')
         os.remove(captured_key_file_location)
-        if os.path.exists(captured_key_file_location):
-            try:
-                shutil.copyfile(backup_file, captured_key_file_location)
-                os.remove(backup_file)
-                print('Restoring backup.')
-            except:
-                pass
+        if os.path.exists(backup_file):
+            shutil.copyfile(backup_file, captured_key_file_location)
+            os.remove(backup_file)
+            print('Restoring backup.')
 
 
 def set_time_limit(time_object, time_type, time_to_add):  # ads a certain time to an input datetime object (shifts the time by x minutes/seconds).
