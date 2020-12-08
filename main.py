@@ -92,7 +92,7 @@ def scan_code():  # activates the scanner for 5 seconds. Press remote button onc
 
     print('Scanner activated.\n')
     red_led.on()  # red LED on to indicate you should scan the code now
-    command_string = "ir-ctl --mode2 -d /dev/lirc1 -r > " + captured_key_file_location  # string to be used to activate the IR receiver and the associate capture  file name
+    command_string = "sudo ir-ctl --mode2 -d /dev/lirc1 -r > " + captured_key_file_location  # string to be used to activate the IR receiver and the associate capture  file name
     cmd = subprocess.Popen(command_string, stdout=subprocess.PIPE, shell=True)  # executes command
     sleep(5)  # 5 seconds window to send IR code
     subprocess.Popen.kill(cmd)  # kills receiving mode
