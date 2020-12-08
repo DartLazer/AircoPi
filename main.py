@@ -3,6 +3,7 @@ from time import sleep
 import os
 import pathlib
 import datetime
+import shutil
 
 from gpiozero import Button, LED, MotionSensor
 
@@ -82,8 +83,10 @@ def check_airco_off():  # function that checks if the airco is shutdown correctl
 
 
 def scan_code():  # activates the scanner for 5 seconds. Press remote button once to scan and save it.
+    backup_file = pwd + '/key_backup.txt'
     if os.path.exists(captured_key_file_location):
-        print('Replacing old remote configuration..')
+        print('Backing up old remote configuration..')
+        shutil.copyfile(captured_key_file_location, backup_file)
         os.remove(captured_key_file_location)
 
     print('Scanner activated.\n')
@@ -96,9 +99,20 @@ def scan_code():  # activates the scanner for 5 seconds. Press remote button onc
     red_led.off()
     if os.stat(captured_key_file_location).st_size > 10:
         print('Scan successful! Remote captured')
+        try:
+            os.remove(backup_file)
+            print('Cleaning up backup file.')
+        except OSError:
+            pass
         blink_10_fast(red_led)
     else:
         print('Scan failed')
+        try:
+            print('Restoring backup.')
+            os.remove(captured_key_file_location)
+            shutil.copyfile(backup_file, captured_key_file_location)
+        except:
+            pass
 
 
 def set_time_limit(time_object, time_type, time_to_add):  # ads a certain time to an input datetime object (shifts the time by x minutes/seconds).
@@ -170,7 +184,7 @@ def airco_running():  # Vibration has been detected. It has been determined the 
 
 
 def main():
-    print(captured_key_file_location)
+    blink_2_slow(blue_led)
     while True:
         if scan_button.is_pressed:
             scan_code()
