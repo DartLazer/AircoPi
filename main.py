@@ -107,10 +107,11 @@ def scan_code():  # activates the scanner for 5 seconds. Press remote button onc
         blink_10_fast(red_led)
     else:
         print('Scan failed')
+        os.remove(captured_key_file_location)
         try:
-            print('Restoring backup.')
             shutil.copyfile(backup_file, captured_key_file_location)
             os.remove(backup_file)
+            print('Restoring backup.')
         except:
             pass
 
