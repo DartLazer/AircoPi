@@ -16,6 +16,8 @@ motion_sensor = MotionSensor(26)
 
 pwd = str(pathlib.Path(__file__).parent.absolute())
 captured_key_file_location = pwd + '/captured_key.txt'
+backup_file = pwd + '/key_backup.txt'
+duplicate = pwd + '/duplate_key.txt'
 
 
 def blink_10_fast(led_light):  # simple function to fast blink the LEDs
@@ -52,7 +54,8 @@ def shutdown_ac():  # function that sends the IR code (testing only?)
         command = ['ir-ctl', '-d', '/dev/lirc0', '--send=' + captured_key_file_location]
         result = str(subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr).casefold()
         if 'failed' in result:
-            print('Failed')
+            print('Failed restoring key')
+            shutil.copyfile(duplicate, captured_key_file_location)
     except OSError:
         print('No code found. Please scan first')
         dual_blink_2_slow(red_led, blue_led)
@@ -82,7 +85,6 @@ def check_airco_off():  # function that checks if the airco is shutdown correctl
 
 
 def scan_code():  # activates the scanner for 5 seconds. Press remote button once to scan and save it.
-    backup_file = pwd + '/key_backup.txt'
     if os.path.exists(captured_key_file_location):
         print('Backing up old remote configuration..')
         shutil.copyfile(captured_key_file_location, backup_file)
@@ -91,13 +93,13 @@ def scan_code():  # activates the scanner for 5 seconds. Press remote button onc
     print('Scanner activated.\n')
     red_led.on()
     command_string = "ir-ctl --mode2 -d /dev/lirc1 -r > " + captured_key_file_location
-    print(command_string)
     cmd = subprocess.Popen(command_string, stdout=subprocess.PIPE, shell=True)
     sleep(5)
     subprocess.Popen.kill(cmd)
     red_led.off()
     if os.stat(captured_key_file_location).st_size > 10:
         print('Scan successful! Remote captured')
+        shutil.copyfile(captured_key_file_location, duplicate)
         try:
             os.remove(backup_file)
             print('Cleaning up backup file.')
