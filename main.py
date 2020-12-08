@@ -105,7 +105,6 @@ def scan_code():  # activates the scanner for 5 seconds. Press remote button onc
         except OSError:
             pass
         blink_10_fast(red_led)
-        os.system("sudo reboot now")
     else:
         print('Scan failed')  # following logic restores backup key if no key has been scanned
         os.remove(captured_key_file_location)
