@@ -14,7 +14,7 @@ vibration_sensor = MotionSensor(25)
 motion_sensor = MotionSensor(26)
 
 
-pwd = pathlib.Path(__file__).parent.absolute()
+pwd = str(pathlib.Path(__file__).parent.absolute())
 captured_key_file_location = pwd + '/captured_key.txt'
 
 
