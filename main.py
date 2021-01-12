@@ -4,6 +4,7 @@ import os
 import pathlib
 import datetime
 import shutil
+import signal
 
 from gpiozero import Button, LED, MotionSensor
 
@@ -11,10 +12,10 @@ scan_button = Button(17)  # button used to scan the IR signal to be sent to the 
 test_button = Button(27)  # button used to send the IR signal (for testing only)
 red_led = LED(16)
 blue_led = LED(12)
-vibration_sensor = MotionSensor(25)
+vibration_sensor = MotionSensor(25)  # Using MotionSensor gpiozero interface for vibration_sensor due to lack of vibration sensor interface in this package.
 motion_sensor = MotionSensor(26)
 
-pwd = str(pathlib.Path(__file__).parent.absolute())  # determines the present working directory (PATH) to dertmine where to load and store the captured key files
+pwd = str(pathlib.Path(__file__).parent.absolute())  # determines the present working directory (PATH) to determine where to load and store the captured key files
 captured_key_file_location = pwd + '/captured_key.txt'  # name given to the captured key file
 backup_file = pwd + '/key_backup.txt'  # name given to the backup key file
 
@@ -93,18 +94,19 @@ def scan_code():  # activates the scanner for 5 seconds. Press remote button onc
     print('Scanner activated.\n')
     red_led.on()  # red LED on to indicate you should scan the code now
     command_string = "sudo ir-ctl --mode2 -d /dev/lirc1 -r > " + captured_key_file_location  # string to be used to activate the IR receiver and the associate capture  file name
-    cmd = subprocess.Popen(command_string, stdout=subprocess.PIPE, shell=True)  # executes command
+    cmd = subprocess.Popen(command_string, stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)  # executes command to activate the IR receiver to scan and save IR code.
     sleep(5)  # 5 seconds window to send IR code
-    subprocess.Popen.kill(cmd)  # kills receiving mode
+    os.killpg(os.getpgid(cmd.pid), signal.SIGTERM)  # kills the IR to file writing command 2 lines above.
     red_led.off()
-    if os.stat(captured_key_file_location).st_size > 10:
+    if os.stat(captured_key_file_location).st_size > 200:
         print('Scan successful! Remote captured')
         try:
             os.remove(backup_file)
             print('Cleaning up backup file.')
         except OSError:
             pass
-        blink_10_fast(red_led)
+        blink_10_fast(blue_led)
+        return True
     else:
         print('Scan failed')  # following logic restores backup key if no key has been scanned
         os.remove(captured_key_file_location)
@@ -112,6 +114,8 @@ def scan_code():  # activates the scanner for 5 seconds. Press remote button onc
             shutil.copyfile(backup_file, captured_key_file_location)
             os.remove(backup_file)
             print('Restoring backup.')
+            blink_2_slow(red_led)
+            return False
 
 
 def set_time_limit(time_object, time_type, time_to_add):  # ads a certain time to an input datetime object (shifts the time by x minutes/seconds).
@@ -183,10 +187,26 @@ def airco_running():  # Vibration has been detected. It has been determined the 
 
 
 def main():
+    if not os.path.exists(captured_key_file_location):  # checks if an IR key to shut down the AC has already been captured.
+        dual_blink_2_slow(blue_led, red_led)  # blinks both LED's twice to notify the user there is no IR key captured.
+        now = datetime.datetime.now()  # saves current time
+        flash_limit = 10  # interval between led flashes in seconds (to remind user he needs to capture key)
+        blink_limit = set_time_limit(now, 'seconds', flash_limit)  # sets a date-time object after which the LED's will flash again.
+
+        while True:  # enters a loop to ensure an IR code is captured and saved before the rest of the script can be run.
+            now = datetime.datetime.now()
+            if scan_button.is_pressed:  # allows for scanning an IR code.
+                scan_result = scan_code()
+                if scan_result:  # if the scan function returns True, a successful key capture. The loop may be exited.
+                    break
+            if now.time() > blink_limit:  # checks if the LED's need to be flashed again
+                dual_blink_2_slow(blue_led, red_led)
+                blink_limit = set_time_limit(now, 'seconds', flash_limit)  # sets new time point to flash LED's
+
     blink_2_slow(blue_led)
     while True:
-        if scan_button.is_pressed:
-            scan_code()
+        if scan_button.is_pressed:  # allows for scanning an IR code.
+            scan_result = scan_code()
         if vibration_sensor.is_active:
             print('Airco vibration detected. Starting airco logic')
             airco_running()
