@@ -5,6 +5,7 @@ import pathlib
 import datetime
 import shutil
 import signal
+import lcd_driver
 
 from gpiozero import Button, LED, MotionSensor
 
@@ -187,6 +188,7 @@ def airco_running():  # Vibration has been detected. It has been determined the 
 
 
 def main():
+    lcd_driver.draw_text("Welcome to AircoPi", "small", 10)
     if not os.path.exists(captured_key_file_location):  # checks if an IR key to shut down the AC has already been captured.
         dual_blink_2_slow(blue_led, red_led)  # blinks both LED's twice to notify the user there is no IR key captured.
         now = datetime.datetime.now()  # saves current time
