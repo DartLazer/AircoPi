@@ -7,6 +7,7 @@ import shutil
 import signal
 import lcd_driver as display
 
+import pause
 from gpiozero import Button, LED, MotionSensor
 
 scan_button = Button(17)  # button used to scan the IR signal to be sent to the AC unit
@@ -18,6 +19,11 @@ motion_sensor = MotionSensor(8)
 pwd = str(pathlib.Path(__file__).parent.absolute())  # determines the present working directory (PATH) to determine where to load and store the captured key files
 captured_key_file_location = pwd + '/captured_key.txt'  # name given to the captured key file
 backup_file = pwd + '/key_backup.txt'  # name given to the backup key file
+
+start = datetime.time(
+    8)  # beginning of the time period where the airco can NOT be on unrestricted. (Format (hours, minutes) i.e.: datetime.time(8, 30) is 08:30 AM.)
+end = datetime.time(
+    22)  # ending of the time period where the airco can NOT be on unrestricted.     (Format (hours, minutes) i.e.: datetime.time(22, 15) is 10:15 PM.)
 
 
 def blink_10_fast(led_light):  # simple function to fast blink the LEDs
@@ -125,14 +131,6 @@ def set_time_limit(time_object, time_type, time_to_add):  # ads a certain time t
 def airco_running():  # Doors open has been detected. It has been determined the airco is running. This function checks if the airco can be on with or without limitations. If so it will enforce said limitations
     display.display_status = 1  # arms the display to be reset later on.
     now = datetime.datetime.now().time()
-    start = datetime.time(
-        8)  # beginning of the time period where the airco can NOT be on unrestricted. (Format (hours, minutes) i.e.: datetime.time(8, 30) is 08:30 AM.)
-    end = datetime.time(
-        22)  # ending of the time period where the airco can NOT be on unrestricted.     (Format (hours, minutes) i.e.: datetime.time(22, 15) is 10:15 PM.)
-
-    if now < start or now > end:  # Checks if the airco is in the "unrestricted time period". If so, we will not continue further.
-        display.draw_text("Airco is allowed to be on.\nExiting restrictive schedule.")
-        return None  # skip function
 
     last_motion = datetime.datetime.now()  # The last motion variable is a date-time (time) variable which contains the last point in time MOTION has been detected. It is set to the current time now for initialisation.
     airco_run_limit = 1  # time in minutes the airco is allowed to run without detecting motion
@@ -151,6 +149,7 @@ def airco_running():  # Doors open has been detected. It has been determined the
             display.draw_text("Monitoring for movement\n\nA/C will shutdown at:\n" + str(time_limit))
             display.display_status = 0
         if now < start or now > end:  # This once again checks if since the time the airco started, we have now entered the "unrestricted" time span. In this case the script is no longer needed.
+            display.draw_text("Airco is allowed to be on.\nExiting restrictive schedule.")
             break
 
         if motion_sensor.is_active:  # Motion is detected. time_limit variable will be set to current time + 'airco_run_limit' variable. This will be the new time where the AC will be shutoff if no motion detected.
@@ -188,6 +187,7 @@ def airco_running():  # Doors open has been detected. It has been determined the
 
 def main():
     display.draw_text("Welcome to AircoPi", "small")
+    sleep(3)
     if not os.path.exists(captured_key_file_location):  # checks if an IR key to shut down the AC has already been captured.
         display.draw_text("No key found.\nPress button when ready\nto scan the IR signal.", "small")
         now = datetime.datetime.now()  # saves current time
@@ -206,15 +206,24 @@ def main():
                 blink_limit = set_time_limit(now, 'seconds', flash_limit)  # sets new time point to flash LED's
 
     while True:
+        now = datetime.datetime.now().time()
+
         if display.display_status == 1:
             display.draw_text('AircoPi standing by ...')
             display.display_status = 0
-            print('Display status is now: ' + str(display.display_status))
-        if scan_button.is_pressed:  # allows for scanning an IR code.
+            print('Display status is now: ')
+
+        if now < start or now > end:  # Checks if the airco is in the "unrestricted time period". If so, pauses the script until restricted time.
+            display.draw_text('A/C is sleeping until:\n\n' + str(start))
+            pause.until(end)
+
+        if scan_button.is_pressed:  # Activates the IR scanning mode.
             scan_code()
-        if not magnetic_switch.is_active:
+
+        if not magnetic_switch.is_active:  # if the magnet does NOT cause the switch to output HIGH --> Doors are open and Airco is running.
             print('Open door detected. Starting airco logic')
             airco_running()
+
         if test_button.is_pressed:
             shutdown_ac()
         sleep(0.5)
