@@ -12,7 +12,7 @@ from gpiozero import Button, LED, MotionSensor
 scan_button = Button(17)  # button used to scan the IR signal to be sent to the AC unit
 test_button = Button(27)  # button used to send the IR signal (for testing only)
 red_led = LED(16)
-magnetic_switch = MotionSensor(25)  # Using MotionSensor gpiozero interface for magnetic_switch due to lack of vibration sensor interface in this package.
+magnetic_switch = MotionSensor(25)  # Using MotionSensor gpiozero interface for magnetic_switch due to lack of door switch sensor interface in this package.
 motion_sensor = MotionSensor(8)
 
 pwd = str(pathlib.Path(__file__).parent.absolute())  # determines the present working directory (PATH) to determine where to load and store the captured key files
@@ -51,16 +51,16 @@ def shutdown_ac():  # function that sends the IR code (testing only?)
 
 
 def check_airco_off():  # function that checks if the airco is shutdown correctly. If not, it will attempt to shutdown the airco again.
-    vibration_time_limit = datetime.datetime.now().time()
+    door_open_time_limit = datetime.datetime.now().time()
     i = 0
     x = 0
     while i < 20:
         sleep(1)
         now = datetime.datetime.now()
         if not magnetic_switch.is_active:
-            vibration_time_limit = set_time_limit(now, 'seconds', 10)
+            door_open_time_limit = set_time_limit(now, 'seconds', 10)
         if i == 19:
-            if now.time() < vibration_time_limit:
+            if now.time() < door_open_time_limit:
                 print('Airco still on. reattempting shutdown')
                 shutdown_ac()
                 i = 0
@@ -122,7 +122,7 @@ def set_time_limit(time_object, time_type, time_to_add):  # ads a certain time t
         return (time_object + datetime.timedelta(seconds=time_to_add)).time()
 
 
-def airco_running():  # Vibration has been detected. It has been determined the airco is running. This function checks if the airco can be on with or without limitations. If so it will enforce said limitations
+def airco_running():  # Doors open has been detected. It has been determined the airco is running. This function checks if the airco can be on with or without limitations. If so it will enforce said limitations
     display.display_status = 1  # arms the display to be reset later on.
     now = datetime.datetime.now().time()
     start = datetime.time(
@@ -137,12 +137,12 @@ def airco_running():  # Vibration has been detected. It has been determined the 
     last_motion = datetime.datetime.now()  # The last motion variable is a date-time (time) variable which contains the last point in time MOTION has been detected. It is set to the current time now for initialisation.
     airco_run_limit = 1  # time in minutes the airco is allowed to run without detecting motion
 
-    last_vibration = datetime.datetime.now()  # The last vibration variable is a date-time (time) variable which contains the last point in time VIBRATION (airco status) has been detected. It is set to the current time now for initialisation.
-    vibration_limit = 10  # amount of seconds vibrations is allowed to be not registered to allow to send A/C off signal. This is to prevent actually starting the A/C if it has already been switched on, and in the meantime allowing for vibration
-    # sensor inaccuracies where it might or might not registered vibration continuously.
+    last_door_open_time = datetime.datetime.now()  # The last door open variable is a date-time (time) variable which contains the last point in time doors open (airco status) has been detected. It is set to the current time now for initialisation.
+    door_open_limit = 10  # amount of seconds doors open is allowed to be not registered to allow to send A/C off signal. This is to prevent actually starting the A/C if it has already been switched on, and in the meantime allowing for door open
+    # sensor inaccuracies where it might or might not registered door open continuously.
 
-    vibration_time_limit = set_time_limit(last_vibration, 'seconds',
-                                          vibration_limit)  # latest moment the shut-off signal can be sent if vibration has not been detected meanwhile to prevent accidentally starting the AC.
+    door_open_time_limit = set_time_limit(last_door_open_time, 'seconds',
+                                          door_open_limit)  # latest moment the shut-off signal can be sent if doors open has not been detected meanwhile to prevent accidentally starting the AC.
     time_limit = set_time_limit(last_motion, 'minutes', airco_run_limit)  # latest date-time moment the airco is allowed to be on
 
     print('In restricted time. Starting airco control script: ')  # for debugging only
@@ -165,14 +165,13 @@ def airco_running():  # Vibration has been detected. It has been determined the 
             continue  # skip rest of the loop because unnecessary because movement has been detected.
 
         if not magnetic_switch.is_active:
-            vibration_time_limit = set_time_limit(datetime.datetime.now(), 'seconds', vibration_limit)
-            #  print('Vibration detected')  # debugging only
+            door_open_time_limit = set_time_limit(datetime.datetime.now(), 'seconds', door_open_limit)
 
         now = datetime.datetime.now().time()
         if now > time_limit:  # Airco has been on without detected movement for longer than the allowed limit.
             print(f'No motion for the last {airco_run_limit} minutes.')
             display.draw_text(f'No motion for the last\n{airco_run_limit} minutes.\n\nAttempting shutdown.')
-            if now < vibration_time_limit:  # If the airco has been registered on the last 10 seconds. We will not shutdown the AC (to prevent accidentally starting the AC instead of stopping it)
+            if now < door_open_time_limit:  # If the airco has been registered on the last 10 seconds. We will not shutdown the AC (to prevent accidentally starting the AC instead of stopping it)
                 print('Attempting to shut down the AC')
                 shutdown_ac()  # send A/C off signal.
                 sleep(10)
@@ -206,7 +205,6 @@ def main():
                 display.draw_text("No key found.\nPress button when ready\nto scan the IR signal.", "small")
                 blink_limit = set_time_limit(now, 'seconds', flash_limit)  # sets new time point to flash LED's
 
-
     while True:
         if display.display_status == 1:
             display.draw_text('AircoPi standing by ...')
@@ -215,7 +213,7 @@ def main():
         if scan_button.is_pressed:  # allows for scanning an IR code.
             scan_code()
         if not magnetic_switch.is_active:
-            print('Airco vibration detected. Starting airco logic')
+            print('Open door detected. Starting airco logic')
             airco_running()
         if test_button.is_pressed:
             shutdown_ac()
