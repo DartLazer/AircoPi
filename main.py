@@ -4,10 +4,7 @@ import os
 import pathlib
 import datetime
 import shutil
-import signal
 import lcd_driver as display
-
-import pause
 from gpiozero import Button, LED, MotionSensor
 
 scan_button = Button(17)  # button used to scan the IR signal to be sent to the AC unit
@@ -185,6 +182,19 @@ def airco_running():  # Doors open has been detected. It has been determined the
         sleep(0.5)
 
 
+def seconds_until_start_time(current_time):
+    now = current_time
+    now_time_only = now.time()
+    midnight = now.replace(hour=23, minute=59, second=59)
+    start_time_object = now.replace(hour=8, minute=0, second=0, microsecond=0)
+    if end < now_time_only < datetime.time(23, 59, 59):
+        seconds_until_midnight = (midnight - now).seconds
+        start_time_object += datetime.timedelta(days=1)
+        return seconds_until_midnight + (start_time_object - midnight).seconds
+    else:
+        return (start_time_object - now).seconds
+
+
 def main():
     display.draw_text("Welcome to AircoPi", "small")
     sleep(3)
@@ -211,11 +221,12 @@ def main():
         if display.display_status == 1:
             display.draw_text('AircoPi standing by ...')
             display.display_status = 0
-            print('Display status is now: ')
 
         if now < start or now > end:  # Checks if the airco is in the "unrestricted time period". If so, pauses the script until restricted time.
             display.draw_text('A/C is sleeping until:\n\n' + str(start))
-            pause.until(end)
+            seconds_to_sleep = seconds_until_start_time(datetime.datetime.now())
+            print('Sleeping for ' + str(seconds_to_sleep) + " seconds." )
+            sleep(seconds_to_sleep)
 
         if scan_button.is_pressed:  # Activates the IR scanning mode.
             scan_code()

@@ -7,7 +7,6 @@ Adafruit-PureIO==1.1.8
 board==1.0
 colorzero==1.1
 gpiozero==1.5.1
-pause==0.3
 Pillow==8.1.0
 pyftdi==0.52.9
 pyserial==3.5
