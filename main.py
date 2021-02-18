@@ -1,37 +1,48 @@
 import subprocess
 from time import sleep
 import os
+import signal
 import pathlib
 import datetime
 import shutil
 import lcd_driver as display
 from gpiozero import Button, LED, MotionSensor
 
+# ------------------ Enter variables here ---------------------- #
+
+start_hour = 8  # Hour at which the Pi starts checking if the airco is on. (i.e: putting 8 gives 08:00)
+start_minute = 0  # Minute at which the Pi starts checking if the airco is on. (i.e: putting 30 in combination with start_hour 8 gives 08:30)
+
+end_hour = 22  # Hour at which the Pi stops checking if the airco is on. (i.e: putting 22 gives 22:00)
+end_minute = 00  # Minute at which the Pi starts checking if the airco is on. (i.e: putting 30 in combination with end_hour 22 gives 22:30)
+
+airco_run_limit = 1  # time in minutes the airco is allowed to run without detecting motion in the restrictive time period.
+
+# ------------------ End of user variables --------------------- #
+
+
+# ------------------ Sensor configuration ----------------------- #
+
+# Numbers between brackets refer to the GPIO pin to which the sensor is connected
 scan_button = Button(17)  # button used to scan the IR signal to be sent to the AC unit
 test_button = Button(27)  # button used to send the IR signal (for testing only)
 red_led = LED(16)
 magnetic_switch = MotionSensor(25)  # Using MotionSensor gpiozero interface for magnetic_switch due to lack of door switch sensor interface in this package.
-motion_sensor = MotionSensor(8)
+motion_sensor = MotionSensor(8)  # PIR motion sensor
+
+#  --------------- - End of sensor configuration ----------------- #
 
 pwd = str(pathlib.Path(__file__).parent.absolute())  # determines the present working directory (PATH) to determine where to load and store the captured key files
 captured_key_file_location = pwd + '/captured_key.txt'  # name given to the captured key file
 backup_file = pwd + '/key_backup.txt'  # name given to the backup key file
 
 start = datetime.time(
-    8)  # beginning of the time period where the airco can NOT be on unrestricted. (Format (hours, minutes) i.e.: datetime.time(8, 30) is 08:30 AM.)
+    start_hour)  # beginning of the time period where the airco can NOT be on unrestricted. (Format (hours, minutes) i.e.: datetime.time(8, 30) is 08:30 AM.)
 end = datetime.time(
-    22)  # ending of the time period where the airco can NOT be on unrestricted.     (Format (hours, minutes) i.e.: datetime.time(22, 15) is 10:15 PM.)
+    end_hour)  # ending of the time period where the airco can NOT be on unrestricted.     (Format (hours, minutes) i.e.: datetime.time(22, 15) is 10:15 PM.)
 
 
-def blink_10_fast(led_light):  # simple function to fast blink the LEDs
-    for x in range(0, 10):
-        led_light.on()
-        sleep(0.05)
-        led_light.off()
-        sleep(0.05)
-
-
-def blink_2_slow(led_light):
+def blink_2_slow(led_light):  # function blinks the LED twice
     for x in range(0, 2):
         led_light.on()
         sleep(0.4)
@@ -39,7 +50,7 @@ def blink_2_slow(led_light):
         sleep(0.4)
 
 
-def shutdown_ac():  # function that sends the IR code (testing only?)
+def shutdown_ac():  # function that sends the IR code to shutdown the A/C
     try:
         if os.stat(captured_key_file_location).st_size < 10:  # checks if code has been scanned. if not raises an error.
             raise OSError
@@ -76,7 +87,7 @@ def check_airco_off():  # function that checks if the airco is shutdown correctl
         i += 1
 
 
-def scan_code():  # activates the scanner for 5 seconds. Press remote button once to scan and save it.
+def scan_code():  # activates the scanner for 5 seconds. Press remote button once to scan and save it. If an old key is found, it backs it up temporarily to recover it in case of scan failure. (accidental press)
     if os.path.exists(captured_key_file_location):  # checks if a code already exists, if so backs it up and removes the present one
         print('Backing up old remote configuration..')
         display.draw_text("Old IR code found...\nBacking up old key.", "small")
@@ -130,7 +141,6 @@ def airco_running():  # Doors open has been detected. It has been determined the
     now = datetime.datetime.now().time()
 
     last_motion = datetime.datetime.now()  # The last motion variable is a date-time (time) variable which contains the last point in time MOTION has been detected. It is set to the current time now for initialisation.
-    airco_run_limit = 1  # time in minutes the airco is allowed to run without detecting motion
 
     last_door_open_time = datetime.datetime.now()  # The last door open variable is a date-time (time) variable which contains the last point in time doors open (airco status) has been detected. It is set to the current time now for initialisation.
     door_open_limit = 10  # amount of seconds doors open is allowed to be not registered to allow to send A/C off signal. This is to prevent actually starting the A/C if it has already been switched on, and in the meantime allowing for door open
@@ -186,7 +196,7 @@ def seconds_until_start_time(current_time):
     now = current_time
     now_time_only = now.time()
     midnight = now.replace(hour=23, minute=59, second=59)
-    start_time_object = now.replace(hour=8, minute=0, second=0, microsecond=0)
+    start_time_object = now.replace(hour=start_hour, minute=start_minute, second=0, microsecond=0)
     if end < now_time_only < datetime.time(23, 59, 59):
         seconds_until_midnight = (midnight - now).seconds
         start_time_object += datetime.timedelta(days=1)
@@ -225,7 +235,7 @@ def main():
         if now < start or now > end:  # Checks if the airco is in the "unrestricted time period". If so, pauses the script until restricted time.
             display.draw_text('A/C is sleeping until:\n\n' + str(start))
             seconds_to_sleep = seconds_until_start_time(datetime.datetime.now())
-            print('Sleeping for ' + str(seconds_to_sleep) + " seconds." )
+            print('Sleeping for ' + str(seconds_to_sleep) + " seconds.")
             sleep(seconds_to_sleep)
 
         if scan_button.is_pressed:  # Activates the IR scanning mode.
