@@ -26,9 +26,9 @@ airco_run_limit = 1  # time in minutes the airco is allowed to run without detec
 # Numbers between brackets refer to the GPIO pin to which the sensor is connected
 scan_button = Button(17)  # button used to scan the IR signal to be sent to the AC unit
 test_button = Button(27)  # button used to send the IR signal (for testing only)
-red_led = LED(16)
-magnetic_switch = MotionSensor(25)  # Using MotionSensor gpiozero interface for magnetic_switch due to lack of door switch sensor interface in this package.
-motion_sensor = MotionSensor(8)  # PIR motion sensor
+red_led = LED(22)
+magnetic_switch = MotionSensor(13)  # Using MotionSensor gpiozero interface for magnetic_switch due to lack of door switch sensor interface in this package.
+motion_sensor = MotionSensor(27)  # PIR motion sensor
 
 #  --------------- - End of sensor configuration ----------------- #
 
